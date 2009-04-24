@@ -8,26 +8,21 @@
 static void *framebuffer = NULL;
 static GXRModeObj *vmode = NULL;
 
-void con_init(u32 x, u32 y)
+
+void Con_Init(u32 x, u32 y, u32 w, u32 h)
 {
-	u32 w, h;
-
-	/* Set console width and height */
-	w = vmode->fbWidth - (x * 2);
-	h = vmode->xfbHeight - (y + 20);
-
 	/* Create console in the framebuffer */
 	CON_InitEx(vmode, x, y, w, h);
 }
 
-void con_clear(void)
+void Con_Clear(void)
 {
 	/* Clear console */
 	printf("\x1b[2J");
 	fflush(stdout);
 }
 
-void con_clearline(void)
+void Con_ClearLine(void)
 {
 	s32 cols, rows;
 	u32 cnt;
@@ -35,39 +30,34 @@ void con_clearline(void)
 	printf("\r");
 	fflush(stdout);
 
-	/* Save cursor position */
-	printf("\x1b[s");
-	fflush(stdout);
-
 	/* Get console metrics */
 	CON_GetMetrics(&cols, &rows);
 
 	/* Erase line */
-	for (cnt = 0; cnt < cols; cnt++) {
+	for (cnt = 1; cnt < cols; cnt++) {
 		printf(" ");
 		fflush(stdout);
 	}
 
-	/* Load cursor position */
-	printf("\x1b[u");
+	printf("\r");
 	fflush(stdout);
 }
 
-void con_fgcolor(u32 color, u8 bold)
+void Con_FgColor(u32 color, u8 bold)
 {
 	/* Set foreground color */
 	printf("\x1b[%u;%um", color + 30, bold);
 	fflush(stdout);
 }
 
-void con_bgcolor(u32 color, u8 bold)
+void Con_BgColor(u32 color, u8 bold)
 {
 	/* Set background color */
 	printf("\x1b[%u;%um", color + 40, bold);
 	fflush(stdout);
 }
 
-void con_fillrow(u32 row, u32 color, u8 bold)
+void Con_FillRow(u32 row, u32 color, u8 bold)
 {
 	s32 cols, rows;
 	u32 cnt;
@@ -98,11 +88,25 @@ void con_fillrow(u32 row, u32 color, u8 bold)
 	fflush(stdout);
 
 	/* Set default color */
-	con_bgcolor(0, 0);
-	con_fgcolor(7, 1);
+	Con_BgColor(0, 0);
+	Con_FgColor(7, 1);
 }
 
-void video_setmode(void)
+void Video_Configure(GXRModeObj *rmode)
+{
+	/* Configure the video subsystem */
+	VIDEO_Configure(rmode);
+
+	/* Setup video */
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+
+	if (rmode->viTVMode & VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
+}
+
+void Video_SetMode(void)
 {
 	/* Select preferred video mode */
 	vmode = VIDEO_GetPreferredMode(NULL);
@@ -123,15 +127,15 @@ void video_setmode(void)
 		VIDEO_WaitVSync();
 
 	/* Clear the screen */
-	VIDEO_ClearFrameBuffer(vmode, framebuffer, COLOR_BLACK);
+	Video_Clear(COLOR_BLACK);
 }
 
-void video_clear(s32 color)
+void Video_Clear(s32 color)
 {
 	VIDEO_ClearFrameBuffer(vmode, framebuffer, color);
 }
 
-void video_drawpng(IMGCTX ctx, PNGUPROP imgProp, u16 x, u16 y)
+void Video_DrawPng(IMGCTX ctx, PNGUPROP imgProp, u16 x, u16 y)
 {
 	PNGU_DECODE_TO_COORDS_YCbYCr(ctx, x, y, imgProp.imgWidth, imgProp.imgHeight, vmode->fbWidth, vmode->xfbHeight, framebuffer);
 }

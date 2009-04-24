@@ -4,8 +4,9 @@
 #include <wiiuse/wpad.h>
 
 /* Prototypes */
-s32 wpad_init(void);
-u32 wpad_getbuttons(void);
-u32 wpad_waitbuttons(void);
+s32  Wpad_Init(void);
+void Wpad_Disconnect(void);
+u32  Wpad_GetButtons(void);
+u32  Wpad_WaitButtons(void);
 
 #endif

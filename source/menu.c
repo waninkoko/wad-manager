@@ -161,6 +161,7 @@ void Menu_Device(void)
 
 	s32 ret, selected = 0;
 
+loop:
 	/* Select source device */
 	for (;;) {
 		/* Clear console */
@@ -169,10 +170,10 @@ void Menu_Device(void)
 		/* Selected device */
 		device = &deviceList[selected];
 
-		printf("\t\t>> Select source device: < %s >\n\n", device->name);
+		printf("\t>> Select source device: < %s >\n\n", device->name);
 
-		printf("\t\t   Press LEFT/RIGHT to change the selected device.\n");
-		printf("\t\t   Press A to continue.\n\n");
+		printf("\t   Press LEFT/RIGHT to change the selected device.\n");
+		printf("\t   Press A to continue.\n\n");
 
 		u32 buttons = Wpad_WaitButtons();
 
@@ -185,6 +186,10 @@ void Menu_Device(void)
 			if ((++selected) >= NB_DEVICES)
 				selected = 0;
 		}
+
+		/* HOME button */
+		if (buttons & WPAD_BUTTON_HOME)
+			Restart();
 
 		/* A button */
 		if (buttons & WPAD_BUTTON_A)
@@ -213,11 +218,16 @@ void Menu_Device(void)
 	} else
 		printf(" OK!\n");
 
+	return;
+
 err:
 	printf("\n");
 	printf("    Press any button to continue...\n");
 
 	Wpad_WaitButtons();
+
+	/* Prompt menu again */
+	goto loop;
 }
 
 void Menu_Manage(u32 index, u8 mode)

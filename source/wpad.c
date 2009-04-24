@@ -1,18 +1,48 @@
 #include <stdio.h>
 #include <ogcsys.h>
 
+#include "sys.h"
 #include "wpad.h"
 
 /* Constants */
 #define MAX_WIIMOTES	4
 
-s32 wpad_init(void)
+
+void __Wpad_PowerCallback(s32 chan)
 {
-	/* Initialize Wiimote subsystem */
-	return WPAD_Init();
+	/* Poweroff console */
+	Sys_Shutdown();
 }
 
-u32 wpad_getbuttons(void)
+
+s32 Wpad_Init(void)
+{
+	s32 ret;
+
+	/* Initialize Wiimote subsystem */
+	ret = WPAD_Init();
+	if (ret < 0)
+		return ret;
+
+	/* Set POWER button callback */
+	WPAD_SetPowerButtonCallback(__Wpad_PowerCallback);
+
+	return ret;
+}
+
+void Wpad_Disconnect(void)
+{
+	u32 cnt;
+
+	/* Disconnect Wiimotes */
+	for (cnt = 0; cnt < MAX_WIIMOTES; cnt++)
+		WPAD_Disconnect(cnt);
+
+	/* Shutdown Wiimote subsystem */
+	WPAD_Shutdown();
+}
+
+u32 Wpad_GetButtons(void)
 {
 	u32 buttons = 0, cnt;
 
@@ -26,13 +56,13 @@ u32 wpad_getbuttons(void)
 	return buttons;
 }
 
-u32 wpad_waitbuttons(void)
+u32 Wpad_WaitButtons(void)
 {
 	u32 buttons = 0;
 
 	/* Wait for button pressing */
 	while (!buttons) {
-		buttons = wpad_getbuttons();
+		buttons = Wpad_GetButtons();
 		VIDEO_WaitVSync();
 	}
 
