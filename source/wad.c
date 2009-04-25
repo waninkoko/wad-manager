@@ -7,7 +7,7 @@
 #include "video.h"
 #include "wad.h"
 
-/* WAD Header struct */
+/* 'WAD Header' structure */
 typedef struct {
 	/* Header length */
 	u32 header_len;
@@ -26,8 +26,26 @@ typedef struct {
 	u32 footer_len;
 } ATTRIBUTE_PACKED wadHeader;
 
+/* Variables */
+static u8 wadBuffer[BLOCK_SIZE] ATTRIBUTE_ALIGN(32);
 
-s32 __Wad_ReadFile(FILE *fp, void **outbuf, u32 offset, u32 len)
+
+s32 __Wad_ReadFile(FILE *fp, void *outbuf, u32 offset, u32 len)
+{
+	s32 ret;
+
+	/* Seek to offset */
+	fseek(fp, offset, SEEK_SET);
+
+	/* Read data */
+	ret = fread(outbuf, len, 1, fp);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+s32 __Wad_ReadAlloc(FILE *fp, void **outbuf, u32 offset, u32 len)
 {
 	void *buffer = NULL;
 	s32   ret;
@@ -37,14 +55,11 @@ s32 __Wad_ReadFile(FILE *fp, void **outbuf, u32 offset, u32 len)
 	if (!buffer)
 		return -1;
 
-	/* Seek to offset */
-	fseek(fp, offset, SEEK_SET);
-
-	/* Read data */
-	ret = fread(buffer, 1, len, fp);
-	if (ret != len) {
+	/* Read file */
+	ret = __Wad_ReadFile(fp, buffer, offset, len);
+	if (ret < 0) {
 		free(buffer);
-		return -1;
+		return ret;
 	}
 
 	/* Set pointer */
@@ -66,13 +81,8 @@ s32 __Wad_GetTitleID(FILE *fp, wadHeader *header, u64 *tid)
 	offset += round_up(header->certs_len,  64);
 	offset += round_up(header->crl_len,    64);
 
-	/* Allocate memory */
-	p_tik = (signed_blob *)memalign(32, header->tik_len);
-	if (!p_tik)
-		return -1;
-
 	/* Read ticket */
-	ret = __Wad_ReadFile(fp, (void *)&p_tik, offset, header->tik_len);
+	ret = __Wad_ReadAlloc(fp, (void *)&p_tik, offset, header->tik_len);
 	if (ret < 0)
 		goto out;
 
@@ -96,26 +106,23 @@ s32 Wad_Install(FILE *fp)
 	wadHeader   *header  = NULL;
 	signed_blob *p_certs = NULL, *p_crl = NULL, *p_tik = NULL, *p_tmd = NULL;
 
-	u8   *contentBuf = NULL;
-	tmd  *tmd_data   = NULL;
+	tmd *tmd_data  = NULL;
 
 	u32 cnt, offset = 0;
 	s32 ret;
-
-	Con_ClearLine();
 
 	printf("\t\t>> Reading WAD data...");
 	fflush(stdout);
 
 	/* WAD header */
-	ret = __Wad_ReadFile(fp, (void *)&header, offset, sizeof(wadHeader));
+	ret = __Wad_ReadAlloc(fp, (void *)&header, offset, sizeof(wadHeader));
 	if (ret < 0)
 		goto err;
 	else
 		offset += round_up(header->header_len, 64);
 
 	/* WAD certificates */
-	ret = __Wad_ReadFile(fp, (void *)&p_certs, offset, header->certs_len);
+	ret = __Wad_ReadAlloc(fp, (void *)&p_certs, offset, header->certs_len);
 	if (ret < 0)
 		goto err;
 	else
@@ -123,7 +130,7 @@ s32 Wad_Install(FILE *fp)
 
 	/* WAD crl */
 	if (header->crl_len) {
-		ret = __Wad_ReadFile(fp, (void *)&p_crl, offset, header->crl_len);
+		ret = __Wad_ReadAlloc(fp, (void *)&p_crl, offset, header->crl_len);
 		if (ret < 0)
 			goto err;
 		else
@@ -131,14 +138,14 @@ s32 Wad_Install(FILE *fp)
 	}
 
 	/* WAD ticket */
-	ret = __Wad_ReadFile(fp, (void *)&p_tik, offset, header->tik_len);
+	ret = __Wad_ReadAlloc(fp, (void *)&p_tik, offset, header->tik_len);
 	if (ret < 0)
 		goto err;
 	else
 		offset += round_up(header->tik_len, 64);
 
 	/* WAD TMD */
-	ret = __Wad_ReadFile(fp, (void *)&p_tmd, offset, header->tmd_len);
+	ret = __Wad_ReadAlloc(fp, (void *)&p_tmd, offset, header->tmd_len);
 	if (ret < 0)
 		goto err;
 	else
@@ -171,7 +178,7 @@ s32 Wad_Install(FILE *fp)
 	for (cnt = 0; cnt < tmd_data->num_contents; cnt++) {
 		tmd_content *content = &tmd_data->contents[cnt];
 
-		u32 idx, len;
+		u32 idx = 0, len;
 		s32 cfd;
 
 		Con_ClearLine();
@@ -190,29 +197,27 @@ s32 Wad_Install(FILE *fp)
 		}
 
 		/* Install content data */
-		for (idx = 0; idx < len; idx += len) {
+		while (idx < len) {
 			u32 size;
 
+			/* Data length */
 			size = (len - idx);
 			if (size > BLOCK_SIZE)
 				size = BLOCK_SIZE;
 
 			/* Read data */
-			ret = __Wad_ReadFile(fp, (void *)&contentBuf, offset, size);
+			ret = __Wad_ReadFile(fp, &wadBuffer, offset, size);
 			if (ret < 0)
 				goto err;
 
 			/* Install data */
-			ret = ES_AddContentData(cfd, contentBuf, len);
+			ret = ES_AddContentData(cfd, wadBuffer, size);
 			if (ret < 0)
 				goto err;
 
-			/* Free memory */
-			free(contentBuf);
-			contentBuf = NULL;
-
-			/* Increase offset */
-			offset += len;
+			/* Increase variables */
+			idx    += size;
+			offset += size;
 		}
 
 		/* Finish content installation */
@@ -251,8 +256,6 @@ out:
 		free(p_tik);
 	if (p_tmd)
 		free(p_tmd);
-	if (contentBuf)
-		free(contentBuf);
 
 	return ret;
 }
@@ -270,7 +273,7 @@ s32 Wad_Uninstall(FILE *fp)
 	fflush(stdout);
 
 	/* WAD header */
-	ret = __Wad_ReadFile(fp, (void *)&header, 0, sizeof(wadHeader));
+	ret = __Wad_ReadAlloc(fp, (void *)&header, 0, sizeof(wadHeader));
 	if (ret < 0) {
 		printf(" ERROR! (ret = %d)\n", ret);
 		goto out;
@@ -283,26 +286,32 @@ s32 Wad_Uninstall(FILE *fp)
 		goto out;
 	}
 
+	Con_ClearLine();
 
 	printf("\t\t>> Deleting tickets...");
 	fflush(stdout);
 
 	/* Get ticket views */
 	ret = Title_GetTicketViews(tid, &viewData, &viewCnt);
+	if (ret < 0)
+		printf(" ERROR! (ret = %d)\n", ret);
+
+	/* Delete tickets */
 	if (ret >= 0) {
 		u32 cnt;
 
-		/* Delete title tickets */
+		/* Delete all tickets */
 		for (cnt = 0; cnt < viewCnt; cnt++) {
 			ret = ES_DeleteTicket(&viewData[cnt]);
-			if (ret < 0) {
-				printf(" ERROR! (ret = %d)\n", ret);
+			if (ret < 0)
 				break;
-			}
 		}
-	} else
-		printf(" ERROR! (ret = %d)\n", ret);
 
+		if (ret < 0)
+			printf(" ERROR! (ret = %d\n", ret);
+		else
+			printf(" OK!\n");
+	}
 
 	printf("\t\t>> Deleting title contents...");
 	fflush(stdout);

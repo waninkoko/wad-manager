@@ -3,18 +3,18 @@
 #include <string.h>
 #include <malloc.h>
 #include <ogcsys.h>
-#include <sys/dir.h>
 
 #include "fat.h"
 #include "menu.h"
 #include "restart.h"
 #include "usbstorage.h"
+#include "utils.h"
 #include "video.h"
 #include "wad.h"
 #include "wpad.h"
 
-/* Device list */
-static struct fatDevice deviceList[] = {
+/* Device list variables */
+static fatDevice deviceList[] = {
 	{ "sd",		"Wii SD Slot",			&__io_wiisd },
 	{ "usb",	"USB Mass Storage Device",	&__io_usbstorage },
 	{ "usb2",	"USB 2.0 Mass Storage Device",	&__io_usb2storage },
@@ -22,45 +22,73 @@ static struct fatDevice deviceList[] = {
 	{ "gcsdb",	"SD Gecko (Slot B)",		&__io_gcsdb },
 };
 
+static s32 device = 0;
+
+/* File list variables */
+static fatFile *fileList = NULL;
+static u32      fileCnt  = 0;
+
+/* Variables */
+static s32 selected = 0, start = 0;
+
 /* Macros */
-#define NB_DEVICES	(sizeof(deviceList) / sizeof(struct fatDevice))
+#define NB_DEVICES		(sizeof(deviceList) / sizeof(fatDevice))
 
 /* Constants */
 #define ENTRIES_PER_PAGE	10
 #define WAD_DIRECTORY		"/wad"
 
-/* Filelist variables */
-static char fileList[65535] = { 0 };
-static u32  fileCnt = 0;
-
-/* Variables */
-static s32 selected = 0, start = 0;
-
 
 s32 __Menu_RetrieveList(void)
 {
-	char     *ptr = fileList;
-	DIR_ITER *dir = NULL;
+	fatDevice *dev = &deviceList[device];
+	DIR_ITER  *dir = NULL;
 
 	struct stat filestat;
 
+	char dirpath[128], filename[1024];
+	u32  cnt = 0, len;
+
+	/* Generate dirpath */
+	sprintf(dirpath, "%s:" WAD_DIRECTORY, dev->mount);
+
 	/* Open directory */
-	dir = diropen(WAD_DIRECTORY);
+	dir = diropen(dirpath);
 	if (!dir)
 		return -1;
+
+	/* Count entries */
+	while (!dirnext(dir, filename, &filestat)) {
+		if (!(filestat.st_mode & S_IFDIR))
+			cnt++;
+	}
+
+	/* Reset directory */
+	dirreset(dir);
+
+	/* Buffer length */
+	len = sizeof(fatFile) * cnt;
+
+	/* Allocate memory */
+	fileList = (fatFile *)realloc(fileList, len);
+	if (!fileList) {
+		dirclose(dir);
+		return -2;
+	}
 
 	/* Reset file counter */
 	fileCnt = 0;
 
-	/* Erase file list */
-	memset(fileList, 0, sizeof(fileList));
-
-	/* Get directory entries */
-	while (!dirnext(dir, ptr, &filestat))
+	/* Get entries */
+	while (!dirnext(dir, filename, &filestat)) {
 		if (!(filestat.st_mode & S_IFDIR)) {
-			ptr += strlen(ptr) + 1;
-			fileCnt++;
+			fatFile *file = &fileList[fileCnt++];
+
+			/* Copy file info */
+			strcpy(file->filename, filename);
+			file->filestat = filestat;
 		}
+	}
 
 	/* Close directory */
 	dirclose(dir);
@@ -92,7 +120,7 @@ void __Menu_MoveList(s8 delta)
 
 void __Menu_PrintList(void)
 {
-	u32 cnt, idx;
+	u32 cnt;
 
 	printf("[+] Available WAD files on the device:\n\n");
 
@@ -102,21 +130,19 @@ void __Menu_PrintList(void)
 		return;
 	}
 
-	/* Move to start entry */
-	for (cnt = idx = 0; cnt < start; cnt++)
-		idx += strlen(fileList + idx) + 1;
-
 	/* Print entries */
 	for (cnt = start; cnt < fileCnt; cnt++) {
+		fatFile *file = &fileList[cnt];
+
+		/* File size in megabytes */
+		f32 filesize = file->filestat.st_size / MB_SIZE;
+
 		/* Entries per page limit */
 		if ((cnt - start) >= ENTRIES_PER_PAGE)
 			break;
 
 		/* Print filename */
-		printf("\t\t%2s %s\n", (cnt == selected) ? ">>" : "  ", fileList + idx);
-
-		/* Move to the next entry */
-		idx += strlen(fileList + idx) + 1;
+		printf("\t\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", file->filename, filesize);
 	}
 }
 
@@ -157,34 +183,35 @@ void __Menu_Controls(void)
 
 void Menu_Device(void)
 {
-	struct fatDevice *device = NULL;
+	fatDevice *dev = NULL;
 
-	s32 ret, selected = 0;
+	s32 ret;
 
-loop:
 	/* Select source device */
 	for (;;) {
 		/* Clear console */
 		Con_Clear();
 
 		/* Selected device */
-		device = &deviceList[selected];
+		dev = &deviceList[device];
 
-		printf("\t>> Select source device: < %s >\n\n", device->name);
+		printf("\t>> Select source device: < %s >\n\n", dev->name);
 
-		printf("\t   Press LEFT/RIGHT to change the selected device.\n");
-		printf("\t   Press A to continue.\n\n");
+		printf("\t   Press LEFT/RIGHT to change the selected device.\n\n");
+
+		printf("\t   Press A button to continue.\n");
+		printf("\t   Press HOME button to restart.\n\n\n");
 
 		u32 buttons = Wpad_WaitButtons();
 
 		/* LEFT/RIGHT buttons */
 		if (buttons & WPAD_BUTTON_LEFT) {
-			if ((--selected) <= -1)
-				selected = (NB_DEVICES - 1);
+			if ((--device) <= -1)
+				device = (NB_DEVICES - 1);
 		}
 		if (buttons & WPAD_BUTTON_RIGHT) {
-			if ((++selected) >= NB_DEVICES)
-				selected = 0;
+			if ((++device) >= NB_DEVICES)
+				device = 0;
 		}
 
 		/* HOME button */
@@ -201,7 +228,7 @@ loop:
 	fflush(stdout);
 
 	/* Mount device */
-	ret = Fat_Mount(device);
+	ret = Fat_Mount(dev);
 	if (ret < 0) {
 		printf(" ERROR! (ret = %d)\n", ret);
 		goto err;
@@ -211,6 +238,7 @@ loop:
 	printf("[+] Retrieving file list...");
 	fflush(stdout);
 
+	/* Retrieve filelist */
 	ret = __Menu_RetrieveList();
 	if (ret < 0) {
 		printf(" ERROR! (ret = %d)\n", ret);
@@ -221,27 +249,41 @@ loop:
 	return;
 
 err:
+	/* Unmount device */
+	Fat_Unmount(dev);
+
 	printf("\n");
 	printf("    Press any button to continue...\n");
 
 	Wpad_WaitButtons();
 
 	/* Prompt menu again */
-	goto loop;
+	Menu_Device();
 }
 
 void Menu_Manage(u32 index, u8 mode)
 {
+	fatDevice *dev  = NULL;
+	fatFile   *file = NULL;
+
+	FILE *fp = NULL;
+
 	char filepath[128];
+	f32  filesize;
 
-	char *ptr = fileList;
-	FILE *fp  = NULL;
+	/* No files */
+	if (!fileCnt)
+		return;
 
-	u32 cnt;
+	/* Selected file/device */
+	dev  = &deviceList[device];
+	file = &fileList[index];
 
-	/* Move to the specified entry */
-	for (cnt = 0; cnt < index; cnt++)
-		ptr += strlen(ptr) + 1;
+	/* File size in megabytes */
+	filesize = (file->filestat.st_size / MB_SIZE);
+
+	/* Clear console */
+	Con_Clear();
 
 	/* Ask user */
 	switch (mode) {
@@ -254,7 +296,8 @@ void Menu_Manage(u32 index, u8 mode)
 		break;
 	}
 
-	printf("    Filename: %s\n\n", ptr);
+	printf("    Filename: %s\n",        file->filename);
+	printf("    Filesize: %.2f MB\n\n", filesize);
 
 	printf("    Press A to continue.\n");
 	printf("    Press B to return to the menu.\n\n");
@@ -273,7 +316,7 @@ void Menu_Manage(u32 index, u8 mode)
 	}
 
 	/* Generate filepath */
-	sprintf(filepath, WAD_DIRECTORY "/%s", ptr);
+	sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", dev->mount, file->filename);
 
 	printf("[+] Opening WAD file, please wait...");
 	fflush(stdout);

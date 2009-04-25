@@ -5,7 +5,7 @@
 #include "fat.h"
 
 
-s32 Fat_Mount(struct fatDevice *dev)
+s32 Fat_Mount(fatDevice *dev)
 {
 	s32 ret;
 
@@ -22,7 +22,7 @@ s32 Fat_Mount(struct fatDevice *dev)
 	return 0;
 }
 
-void Fat_Unmount(struct fatDevice *dev)
+void Fat_Unmount(fatDevice *dev)
 {
 	/* Unmount device */
 	fatUnmount(dev->mount);

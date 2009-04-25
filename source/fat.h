@@ -3,13 +3,15 @@
 
 /* libfat header */
 #include <fat.h>
+#include <sys/dir.h>
 
 /* SD headers */
 #include <sdcard/gcsd.h>
 #include <sdcard/wiisd_io.h>
 
-/* 'FAT Device' struct */
-struct fatDevice {
+
+/* 'FAT Device' structure */
+typedef struct {
 	/* Device mount point */
 	char *mount;
 
@@ -18,11 +20,21 @@ struct fatDevice {
 
 	/* Device interface */
 	const DISC_INTERFACE *interface;
-};
+} fatDevice;
+
+/* 'FAT File' structure */
+typedef struct {
+	/* Filename */
+	char filename[128];
+
+	/* Filestat */
+	struct stat filestat;
+} fatFile;
+
 
 /* Prototypes */
-s32   Fat_Mount(struct fatDevice *);
-void  Fat_Unmount(struct fatDevice *);
+s32   Fat_Mount(fatDevice *);
+void  Fat_Unmount(fatDevice *);
 char *Fat_ToFilename(const char *);
 
 #endif
