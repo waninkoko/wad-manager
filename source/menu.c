@@ -39,6 +39,15 @@ static s32 selected = 0, start = 0;
 #define WAD_DIRECTORY		"/wad"
 
 
+s32 __Menu_EntryCmp(const void *p1, const void *p2)
+{
+	fatFile *f1 = (fatFile *)p1;
+	fatFile *f2 = (fatFile *)p2;
+
+	/* Compare entries */
+	return strcmp(f1->filename, f2->filename);
+}
+
 s32 __Menu_RetrieveList(void)
 {
 	fatDevice *dev = &deviceList[device];
@@ -92,6 +101,9 @@ s32 __Menu_RetrieveList(void)
 
 	/* Close directory */
 	dirclose(dir);
+
+	/* Sort list */
+	qsort(fileList, fileCnt, sizeof(fatFile), __Menu_EntryCmp);
 
 	return 0;
 }

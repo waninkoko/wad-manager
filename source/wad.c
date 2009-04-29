@@ -4,6 +4,7 @@
 #include <ogcsys.h>
 
 #include "title.h"
+#include "utils.h"
 #include "video.h"
 #include "wad.h"
 

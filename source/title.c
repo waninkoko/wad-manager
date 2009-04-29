@@ -4,7 +4,7 @@
 #include <malloc.h>
 #include <ogcsys.h>
 
-#include "title.h"
+#include "utils.h"
 
 
 s32 Title_GetList(u64 **outbuf, u32 *outlen)
