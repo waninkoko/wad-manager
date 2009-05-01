@@ -40,11 +40,6 @@ void Disclaimer(void)
 
 int main(int argc, char **argv)
 {
-	s32 ret;
-
-	/* Load Custom IOS */
-	ret = IOS_ReloadIOS(249);
-
 	/* Initialize subsystems */
 	Sys_Init();
 
@@ -59,9 +54,6 @@ int main(int argc, char **argv)
 
 	/* Initialize Wiimote */
 	Wpad_Init();
-
-	if (ret >= 0)
-		printf("[+] Custom IOS detected and loaded!\n\n\n");
 
 	/* Print disclaimer */
 	Disclaimer();

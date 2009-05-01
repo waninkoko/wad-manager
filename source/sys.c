@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <ogcsys.h>
 
 #include "sys.h"
@@ -60,6 +61,12 @@ void Sys_Shutdown(void)
 
 void Sys_LoadMenu(void)
 {
+	u32 *stub = (u32 *)0x80001800;
+
+	/* Homebrew Channel stub */
+	if (*stub)
+		exit(0);
+
 	/* Return to the Wii system menu */
 	SYS_ResetSystem(SYS_RETURNTOMENU, 0, 0);
 }

@@ -5,8 +5,8 @@
 #include <ogcsys.h>
 
 #include "fat.h"
-#include "menu.h"
 #include "restart.h"
+#include "title.h"
 #include "usbstorage.h"
 #include "utils.h"
 #include "video.h"
@@ -22,22 +22,31 @@ static fatDevice deviceList[] = {
 	{ "gcsdb",	"SD Gecko (Slot B)",		&__io_gcsdb },
 };
 
-static s32 device = 0;
-
-/* File list variables */
-static fatFile *fileList = NULL;
-static u32      fileCnt  = 0;
 
 /* Variables */
-static s32 selected = 0, start = 0;
+static s32 device = 0;
 
 /* Macros */
 #define NB_DEVICES		(sizeof(deviceList) / sizeof(fatDevice))
 
 /* Constants */
+#define CIOS_VERSION		249
 #define ENTRIES_PER_PAGE	10
+
 #define WAD_DIRECTORY		"/wad"
 
+
+s32 __Menu_IsGreater(const void *p1, const void *p2)
+{
+	u32 n1 = *(u32 *)p1;
+	u32 n2 = *(u32 *)p2;
+
+	/* Equal */
+	if (n1 == n2)
+		return 0;
+
+	return (n1 > n2) ? 1 : -1;
+}
 
 s32 __Menu_EntryCmp(const void *p1, const void *p2)
 {
@@ -48,18 +57,18 @@ s32 __Menu_EntryCmp(const void *p1, const void *p2)
 	return strcmp(f1->filename, f2->filename);
 }
 
-s32 __Menu_RetrieveList(void)
+s32 __Menu_RetrieveList(fatFile **outbuf, u32 *outlen)
 {
-	fatDevice *dev = &deviceList[device];
-	DIR_ITER  *dir = NULL;
+	fatFile  *buffer = NULL;
+	DIR_ITER *dir    = NULL;
 
 	struct stat filestat;
 
 	char dirpath[128], filename[1024];
-	u32  cnt = 0, len;
+	u32  cnt;
 
 	/* Generate dirpath */
-	sprintf(dirpath, "%s:" WAD_DIRECTORY, dev->mount);
+	sprintf(dirpath, "%s:" WAD_DIRECTORY, deviceList[device].mount);
 
 	/* Open directory */
 	dir = diropen(dirpath);
@@ -67,131 +76,128 @@ s32 __Menu_RetrieveList(void)
 		return -1;
 
 	/* Count entries */
-	while (!dirnext(dir, filename, &filestat)) {
+	for (cnt = 0; !dirnext(dir, filename, &filestat);) {
 		if (!(filestat.st_mode & S_IFDIR))
 			cnt++;
 	}
 
-	/* Reset directory */
-	dirreset(dir);
-
-	/* Buffer length */
-	len = sizeof(fatFile) * cnt;
-
-	/* Allocate memory */
-	fileList = (fatFile *)realloc(fileList, len);
-	if (!fileList) {
-		dirclose(dir);
-		return -2;
-	}
-
-	/* Reset file counter */
-	fileCnt = 0;
-
-	/* Get entries */
-	while (!dirnext(dir, filename, &filestat)) {
-		if (!(filestat.st_mode & S_IFDIR)) {
-			fatFile *file = &fileList[fileCnt++];
-
-			/* Copy file info */
-			strcpy(file->filename, filename);
-			file->filestat = filestat;
+	if (cnt > 0) {
+		/* Allocate memory */
+		buffer = malloc(sizeof(fatFile) * cnt);
+		if (!buffer) {
+			dirclose(dir);
+			return -2;
 		}
+
+		/* Reset directory */
+		dirreset(dir);
+
+		/* Get entries */
+		for (cnt = 0; !dirnext(dir, filename, &filestat);) {
+			if (!(filestat.st_mode & S_IFDIR)) {
+				fatFile *file = &buffer[cnt++];
+
+				/* File name */
+				strcpy(file->filename, filename);
+
+				/* File stats */
+				file->filestat = filestat;
+			}
+		}
+
+		/* Sort list */
+		qsort(buffer, cnt, sizeof(fatFile), __Menu_EntryCmp);
 	}
 
 	/* Close directory */
 	dirclose(dir);
 
-	/* Sort list */
-	qsort(fileList, fileCnt, sizeof(fatFile), __Menu_EntryCmp);
+	/* Set values */
+	*outbuf = buffer;
+	*outlen = cnt;
 
 	return 0;
 }
 
-void __Menu_MoveList(s8 delta)
+
+void Menu_SelectIOS(void)
 {
-	s32 index;
+	u8 *iosVersion = NULL;
+	u32 iosCnt;
 
-	/* Select next entry */
-	selected += delta;
-
-	/* Out of the list? */
-	if (selected <= -1)
-		selected = (fileCnt- 1);
-	if (selected >= fileCnt)
-		selected = 0;
-
-	/* List scrolling */
-	index = (selected - start);
-
-	if (index >= ENTRIES_PER_PAGE)
-		start += index - (ENTRIES_PER_PAGE - 1);
-	if (index <= -1)
-		start += index;
-}
-
-void __Menu_PrintList(void)
-{
 	u32 cnt;
+	s32 ret, selected = 0;
 
-	printf("[+] Available WAD files on the device:\n\n");
-
-	/* No files */
-	if (!fileCnt) {
-		printf("\t\t>> No files found!\n");
+	/* Get IOS versions */
+	ret = Title_GetIOSVersions(&iosVersion, &iosCnt);
+	if (ret < 0)
 		return;
-	}
 
-	/* Print entries */
-	for (cnt = start; cnt < fileCnt; cnt++) {
-		fatFile *file = &fileList[cnt];
+	/* Sort list */
+	qsort(iosVersion, iosCnt, sizeof(u8), __Menu_IsGreater);
 
-		/* File size in megabytes */
-		f32 filesize = file->filestat.st_size / MB_SIZE;
+	/* Set default version */
+	for (cnt = 0; cnt < iosCnt; cnt++) {
+		u8 version = iosVersion[cnt];
 
-		/* Entries per page limit */
-		if ((cnt - start) >= ENTRIES_PER_PAGE)
+		/* Custom IOS available */
+		if (version == CIOS_VERSION) {
+			selected = cnt;
 			break;
+		}
 
-		/* Print filename */
-		printf("\t\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", file->filename, filesize);
+		/* Current IOS */
+		if (version == IOS_GetVersion())
+			selected = cnt;
+	}
+
+	/* Ask user for IOS version */
+	for (;;) {
+		/* Clear console */
+		Con_Clear();
+
+		printf("\t>> Select IOS version to use: < IOS%d >\n\n", iosVersion[selected]);
+
+		printf("\t   Press LEFT/RIGHT to change IOS version.\n\n");
+
+		printf("\t   Press A button to continue.\n");
+		printf("\t   Press HOME button to restart.\n\n");
+
+		u32 buttons = Wpad_WaitButtons();
+
+		/* LEFT/RIGHT buttons */
+		if (buttons & WPAD_BUTTON_LEFT) {
+			if ((--selected) <= -1)
+				selected = (iosCnt - 1);
+		}
+		if (buttons & WPAD_BUTTON_RIGHT) {
+			if ((++selected) >= iosCnt)
+				selected = 0;
+		}
+
+		/* HOME button */
+		if (buttons & WPAD_BUTTON_HOME)
+			Restart();
+
+		/* A button */
+		if (buttons & WPAD_BUTTON_A)
+			break;
+	}
+
+
+	u8 version = iosVersion[selected];
+
+	if (IOS_GetVersion() != version) {
+		/* Shutdown subsystems */
+		Wpad_Disconnect();
+
+		/* Load IOS */
+		ret = IOS_ReloadIOS(version);
+
+		/* Initialize subsystems */
+		Wpad_Init();
 	}
 }
-
-void __Menu_Controls(void)
-{
-	u32 buttons = Wpad_WaitButtons();
-
-	/* UP/DOWN buttons */
-	if (buttons & WPAD_BUTTON_UP)
-		__Menu_MoveList(-1);
-	if (buttons & WPAD_BUTTON_DOWN)
-		__Menu_MoveList(1);
-
-	/* LEFT/RIGHT buttons */
-	if (buttons & WPAD_BUTTON_LEFT)
-		__Menu_MoveList(-ENTRIES_PER_PAGE);
-	if (buttons & WPAD_BUTTON_RIGHT)
-		__Menu_MoveList(ENTRIES_PER_PAGE);
-
-
-	/* HOME button */
-	if (buttons & WPAD_BUTTON_HOME)
-		Restart();
-
-	/* PLUS (+) button */
-	if (buttons & WPAD_BUTTON_PLUS)
-		Menu_Manage(selected, 'i');
-
-	/* MINUS (-) button */
-	if (buttons & WPAD_BUTTON_MINUS)
-		Menu_Manage(selected, 'u');
-
-	/* ONE (1) button */
-	if (buttons & WPAD_BUTTON_1)
-		Menu_Device();
-}
-
 
 void Menu_Device(void)
 {
@@ -212,7 +218,7 @@ void Menu_Device(void)
 		printf("\t   Press LEFT/RIGHT to change the selected device.\n\n");
 
 		printf("\t   Press A button to continue.\n");
-		printf("\t   Press HOME button to restart.\n\n\n");
+		printf("\t   Press HOME button to restart.\n\n");
 
 		u32 buttons = Wpad_WaitButtons();
 
@@ -247,17 +253,6 @@ void Menu_Device(void)
 	} else
 		printf(" OK!\n");
 
-	printf("[+] Retrieving file list...");
-	fflush(stdout);
-
-	/* Retrieve filelist */
-	ret = __Menu_RetrieveList();
-	if (ret < 0) {
-		printf(" ERROR! (ret = %d)\n", ret);
-		goto err;
-	} else
-		printf(" OK!\n");
-
 	return;
 
 err:
@@ -273,50 +268,39 @@ err:
 	Menu_Device();
 }
 
-void Menu_Manage(u32 index, u8 mode)
+void Menu_WadManage(fatFile *file)
 {
-	fatDevice *dev  = NULL;
-	fatFile   *file = NULL;
-
-	FILE *fp = NULL;
+	fatDevice *dev = &deviceList[device];
+	FILE      *fp  = NULL;
 
 	char filepath[128];
 	f32  filesize;
 
-	/* No files */
-	if (!fileCnt)
-		return;
-
-	/* Selected file/device */
-	dev  = &deviceList[device];
-	file = &fileList[index];
+	u32  mode = 0;
 
 	/* File size in megabytes */
 	filesize = (file->filestat.st_size / MB_SIZE);
 
-	/* Clear console */
-	Con_Clear();
-
-	/* Ask user */
-	switch (mode) {
-	case 'i':
-		printf("[+] Are you sure you want to install this WAD file?\n\n");
-		break;
-
-	case 'u':
-		printf("[+] Are you sure you want to uninstall this WAD file?\n\n");
-		break;
-	}
-
-	printf("    Filename: %s\n",        file->filename);
-	printf("    Filesize: %.2f MB\n\n", filesize);
-
-	printf("    Press A to continue.\n");
-	printf("    Press B to return to the menu.\n\n");
-
-	/* Wait for user answer */
 	for (;;) {
+		/* Clear console */
+		Con_Clear();
+
+		printf("[+] WAD Filename : %s\n",          file->filename);
+		printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
+
+
+		printf("[+] Select action: < %s WAD >\n\n",  (!mode) ? "Install" : "Uninstall");
+
+		printf("    Press LEFT/RIGHT to change selected action.\n\n");
+
+		printf("    Press A to continue.\n");
+		printf("    Press B to go back to the menu.\n\n");
+
 		u32 buttons = Wpad_WaitButtons();
+
+		/* LEFT/RIGHT buttons */
+		if (buttons & (WPAD_BUTTON_LEFT | WPAD_BUTTON_RIGHT))
+			mode ^= 1;
 
 		/* A button */
 		if (buttons & WPAD_BUTTON_A)
@@ -327,11 +311,14 @@ void Menu_Manage(u32 index, u8 mode)
 			return;
 	}
 
+	/* Clear console */
+	Con_Clear();
+
+	printf("[+] Opening \"%s\", please wait...", file->filename);
+	fflush(stdout);
+
 	/* Generate filepath */
 	sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", dev->mount, file->filename);
-
-	printf("[+] Opening WAD file, please wait...");
-	fflush(stdout);
 
 	/* Open WAD */
 	fp = fopen(filepath, "rb");
@@ -341,23 +328,13 @@ void Menu_Manage(u32 index, u8 mode)
 	} else
 		printf(" OK!\n\n");
 
-	/* (Un)Install WAD */
-	switch (mode) {
-	case 'i':
-		printf("[+] Installing WAD, please wait...\n");
+	printf("[+] %s WAD, please wait...\n", (!mode) ? "Installing" : "Uninstalling");
 
-		/* Install WAD */
+	/* Do install/uninstall */
+	if (!mode)
 		Wad_Install(fp);
-
-		break;
-	case 'u':
-		printf("[+] Uninstalling WAD, please wait...\n");
-
-		/* Uninstall WAD */
+	else
 		Wad_Uninstall(fp);
-
-		break;
-	}
 
 out:
 	/* Close file */
@@ -371,20 +348,110 @@ out:
 	Wpad_WaitButtons();
 }
 
-void Menu_Loop(void)
+void Menu_WadList(void)
 {
-	/* Device menu */
-	Menu_Device();
+	fatFile *fileList = NULL;
+	u32      fileCnt;
 
-	/* Menu loop */
+	s32 ret, selected = 0, start = 0;
+
+	printf("[+] Retrieving file list...");
+	fflush(stdout);
+
+	/* Retrieve filelist */
+	ret = __Menu_RetrieveList(&fileList, &fileCnt);
+	if (ret < 0) {
+		printf(" ERROR! (ret = %d)\n", ret);
+		goto err;
+	}
+
+	/* No files */
+	if (!fileCnt) {
+		printf(" No files found!\n");
+		goto err;
+	}
+
 	for (;;) {
+		u32 cnt;
+		s32 index;
+
 		/* Clear console */
 		Con_Clear();
 
-		/* Print entries */
-		__Menu_PrintList();
+		/** Print entries **/
+		printf("[+] Available WAD files on the device:\n\n");
 
-		/* Controls */
-		__Menu_Controls();
+		/* Print entries */
+		for (cnt = start; cnt < fileCnt; cnt++) {
+			fatFile *file     = &fileList[cnt];
+			f32      filesize = file->filestat.st_size / MB_SIZE;
+
+			/* Entries per page limit */
+			if ((cnt - start) >= ENTRIES_PER_PAGE)
+				break;
+
+			/* Print filename */
+			printf("\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", file->filename, filesize);
+		}
+
+		/** Controls **/
+		u32 buttons = Wpad_WaitButtons();
+
+		/* DPAD buttons */
+		if (buttons & (WPAD_BUTTON_UP | WPAD_BUTTON_LEFT)) {
+			selected -= (buttons & WPAD_BUTTON_LEFT) ? ENTRIES_PER_PAGE : 1;
+
+			if (selected <= -1)
+				selected = (fileCnt - 1);
+		}
+		if (buttons & (WPAD_BUTTON_DOWN | WPAD_BUTTON_RIGHT)) {
+			selected += (buttons & WPAD_BUTTON_RIGHT) ? ENTRIES_PER_PAGE : 1;
+
+			if (selected >= fileCnt)
+				selected = 0;
+		}
+
+		/* HOME button */
+		if (buttons & WPAD_BUTTON_HOME)
+			Restart();
+
+		/* A button */
+		if (buttons & WPAD_BUTTON_A)
+			Menu_WadManage(&fileList[selected]);
+
+		/* B button */
+		if (buttons & WPAD_BUTTON_1)
+			return;
+
+		/** Scrolling **/
+		/* List scrolling */
+		index = (selected - start);
+
+		if (index >= ENTRIES_PER_PAGE)
+			start += index - (ENTRIES_PER_PAGE - 1);
+		if (index <= -1)
+			start += index;
+	}
+
+err:
+	printf("\n");
+	printf("    Press any button to continue...\n");
+
+	/* Wait for button */
+	Wpad_WaitButtons();
+}
+
+
+void Menu_Loop(void)
+{
+	/* Select IOS menu */
+	Menu_SelectIOS();
+
+	for (;;) {
+		/* Device menu */
+		Menu_Device();
+
+		/* WAD list menu */
+		Menu_WadList();
 	}
 }

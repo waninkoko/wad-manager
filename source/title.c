@@ -200,3 +200,57 @@ s32 Title_GetSize(u64 tid, u32 *outbuf)
 
 	return 0;
 }
+
+s32 Title_GetIOSVersions(u8 **outbuf, u32 *outlen)
+{
+	u8  *buffer = NULL;
+	u64 *list   = NULL;
+
+	u32 count, cnt, idx;
+	s32 ret;
+
+	/* Get title list */
+	ret = Title_GetList(&list, &count);
+	if (ret < 0)
+		return ret;
+
+	/* Count IOS */
+	for (cnt = idx = 0; idx < count; idx++) {
+		u32 tidh = (list[idx] >> 32);
+		u32 tidl = (list[idx] &  0xFFFFFFFF);
+
+		/* Title is IOS */
+		if ((tidh == 0x1) && (tidl >= 3) && (tidl <= 255))
+			cnt++;
+	}
+
+	/* Allocate memory */
+	buffer = (u8 *)memalign(32, cnt);
+	if (!buffer) {
+		ret = -1;
+		goto out;
+	}
+
+	/* Copy IOS */
+	for (cnt = idx = 0; idx < count; idx++) {
+		u32 tidh = (list[idx] >> 32);
+		u32 tidl = (list[idx] &  0xFFFFFFFF);
+
+		/* Title is IOS */
+		if ((tidh == 0x1) && (tidl >= 3) && (tidl <= 255))
+			buffer[cnt++] = (u8)(tidl & 0xFF);
+	}
+
+	/* Set values */
+	*outbuf = buffer;
+	*outlen = cnt;
+
+	goto out;
+
+out:
+	/* Free memory */
+	if (list)
+		free(list);
+
+	return ret;
+}
