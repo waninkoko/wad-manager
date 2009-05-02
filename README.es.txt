@@ -1,8 +1,9 @@
-+-------------------------------+
-| WAD Manager v1.3 by Waninkoko |
-+-------------------------------+
-|    www.teknoconsolas.info     |
-+-------------------------------+
++----------------------------+
+|   WAD Manager v1.4         |
+|   developed by Waninkoko   |
++----------------------------+
+|    www.teknoconsolas.es    |
++----------------------------+
 
 
 [ DISCLAIMER ]:
@@ -17,14 +18,14 @@
 - WAD Manager es una aplicacion que te permite (des)instalar paquetes WAD.
 
   La aplicacion muestra todos los paquetes WAD disponibles en un
-  dispositivo de almacenamiento para asi poder elegir cuales (des)instalar.
+  dispositivo de almacenamiento para poder elegir cual (des)instalar.
 
 
 [ DISPOSITIVOS SOPORTADOS ]:
 
 - SDGecko.
 - Puerto SD interno (con soporte SDHC).
-- Dispositivo USB.
+- Dispositivo USB (1.1 y 2.0).
 
 
 [ COMO USARLO ]:
@@ -34,14 +35,9 @@
 3. Ejecuta la aplicacion con cualquier metodo para cargar homebrew.
 
 
-[ NOTAS ]:
-
-- Si un Custom IOS es detectado, WAD Manager lo cargara automaticamente para
-  poder aprovecharnos de sus ventajas.
-
-
 [ KUDOS ]:
 
-- Team Twiizers/devkitPRO -> libogc
-- svpe                    -> driver usbstorage
+- Team Twiizers/devkitPRO
+- svpe
+- kwiirk
 - Todos mis betatesters.

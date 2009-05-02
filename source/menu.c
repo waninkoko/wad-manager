@@ -31,7 +31,7 @@ static s32 device = 0;
 
 /* Constants */
 #define CIOS_VERSION		249
-#define ENTRIES_PER_PAGE	10
+#define ENTRIES_PER_PAGE	8
 
 #define WAD_DIRECTORY		"/wad"
 
@@ -394,6 +394,11 @@ void Menu_WadList(void)
 			printf("\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", file->filename, filesize);
 		}
 
+		printf("\n");
+
+		printf("[+] Press A button to (un)install a WAD file.\n");
+		printf("    Press B button to select a storage device.\n");
+
 		/** Controls **/
 		u32 buttons = Wpad_WaitButtons();
 
@@ -420,7 +425,7 @@ void Menu_WadList(void)
 			Menu_WadManage(&fileList[selected]);
 
 		/* B button */
-		if (buttons & WPAD_BUTTON_1)
+		if (buttons & WPAD_BUTTON_B)
 			return;
 
 		/** Scrolling **/

@@ -1,8 +1,9 @@
-+-------------------------------+
-| WAD Manager v1.3 by Waninkoko |
-+-------------------------------+
-|    www.teknoconsolas.info     |
-+--------------------------------+
++----------------------------+
+|   WAD Manager v1.4         |
+|   developed by Waninkoko   |
++----------------------------+
+|    www.teknoconsolas.es    |
++----------------------------+
 
 
 [ DISCLAIMER ]:
@@ -18,14 +19,14 @@
   WAD packages.
 
   It lists all the available WAD packages in a storage device
-  so you can select which ones to (un)install.
+  so you can select which one to (un)install.
 
 
 [ SUPPORTED DEVICES ]:
 
 - SDGecko.
 - Internal SD slot (with SDHC support).
-- USB device.
+- USB device (1.1 and 2.0).
 
 
 [ HOW TO USE ]:
@@ -35,14 +36,9 @@
 3. Run the application with any method to load homebrew.
 
 
-[ NOTES ]:
-
-- If a Custom IOS is detected, WAD Manager will load it automatically to
-  take advantage of its benefits.
-
-
 [ KUDOS ]:
 
-- Team Twiizers/devkitPRO -> libogc
-- svpe                    -> usbstorage driver
+- Team Twiizers/devkitPRO
+- svpe
+- kwiirk
 - All my betatesters.
