@@ -5,6 +5,7 @@
 #include <ogcsys.h>
 
 #include "fat.h"
+#include "nand.h"
 #include "restart.h"
 #include "title.h"
 #include "usbstorage.h"
@@ -13,8 +14,8 @@
 #include "wad.h"
 #include "wpad.h"
 
-/* Device list variables */
-static fatDevice deviceList[] = {
+/* FAT device list  */
+static fatDevice fdevList[] = {
 	{ "sd",		"Wii SD Slot",			&__io_wiisd },
 	{ "usb",	"USB Mass Storage Device",	&__io_usbstorage },
 	{ "usb2",	"USB 2.0 Mass Storage Device",	&__io_usb2storage },
@@ -22,12 +23,21 @@ static fatDevice deviceList[] = {
 	{ "gcsdb",	"SD Gecko (Slot B)",		&__io_gcsdb },
 };
 
+/* NAND device list */
+static nandDevice ndevList[] = {
+	{ "Disable",				0,	0x00,	0x00 },
+	{ "SD/SDHC Card",			1,	0xF0,	0xF1 },
+	{ "USB 2.0 Mass Storage Device",	2,	0xF2,	0xF3 },
+};
 
-/* Variables */
-static s32 device = 0;
+
+/* FAT device */
+static fatDevice  *fdev = NULL;
+static nandDevice *ndev = NULL;
 
 /* Macros */
-#define NB_DEVICES		(sizeof(deviceList) / sizeof(fatDevice))
+#define NB_FAT_DEVICES		(sizeof(fdevList) / sizeof(fatDevice))
+#define NB_NAND_DEVICES		(sizeof(ndevList) / sizeof(nandDevice))
 
 /* Constants */
 #define CIOS_VERSION		249
@@ -64,11 +74,11 @@ s32 __Menu_RetrieveList(fatFile **outbuf, u32 *outlen)
 
 	struct stat filestat;
 
-	char dirpath[128], filename[1024];
+	char dirpath[256], filename[768];
 	u32  cnt;
 
 	/* Generate dirpath */
-	sprintf(dirpath, "%s:" WAD_DIRECTORY, deviceList[device].mount);
+	sprintf(dirpath, "%s:" WAD_DIRECTORY, fdev->mount);
 
 	/* Open directory */
 	dir = diropen(dirpath);
@@ -199,11 +209,13 @@ void Menu_SelectIOS(void)
 	}
 }
 
-void Menu_Device(void)
+void Menu_FatDevice(void)
 {
-	fatDevice *dev = NULL;
+	s32 ret, selected = 0;
 
-	s32 ret;
+	/* Unmount FAT device */
+	if (fdev)
+		Fat_Unmount(fdev);
 
 	/* Select source device */
 	for (;;) {
@@ -211,9 +223,9 @@ void Menu_Device(void)
 		Con_Clear();
 
 		/* Selected device */
-		dev = &deviceList[device];
+		fdev = &fdevList[selected];
 
-		printf("\t>> Select source device: < %s >\n\n", dev->name);
+		printf("\t>> Select source device: < %s >\n\n", fdev->name);
 
 		printf("\t   Press LEFT/RIGHT to change the selected device.\n\n");
 
@@ -224,12 +236,12 @@ void Menu_Device(void)
 
 		/* LEFT/RIGHT buttons */
 		if (buttons & WPAD_BUTTON_LEFT) {
-			if ((--device) <= -1)
-				device = (NB_DEVICES - 1);
+			if ((--selected) <= -1)
+				selected = (NB_FAT_DEVICES - 1);
 		}
 		if (buttons & WPAD_BUTTON_RIGHT) {
-			if ((++device) >= NB_DEVICES)
-				device = 0;
+			if ((++selected) >= NB_FAT_DEVICES)
+				selected = 0;
 		}
 
 		/* HOME button */
@@ -241,12 +253,11 @@ void Menu_Device(void)
 			break;
 	}
 
-	/* Mount device */
 	printf("[+] Mounting device, please wait...");
 	fflush(stdout);
 
-	/* Mount device */
-	ret = Fat_Mount(dev);
+	/* Mount FAT device */
+	ret = Fat_Mount(fdev);
 	if (ret < 0) {
 		printf(" ERROR! (ret = %d)\n", ret);
 		goto err;
@@ -256,22 +267,98 @@ void Menu_Device(void)
 	return;
 
 err:
-	/* Unmount device */
-	Fat_Unmount(dev);
-
 	printf("\n");
 	printf("    Press any button to continue...\n");
 
 	Wpad_WaitButtons();
 
 	/* Prompt menu again */
-	Menu_Device();
+	Menu_FatDevice();
+}
+
+void Menu_NandDevice(void)
+{
+	s32 ret, selected = 0;
+
+	/* Disable NAND emulator */
+	if (ndev) {
+		Nand_Unmount(ndev);
+		Nand_Disable();
+	}
+
+	/* Select source device */
+	for (;;) {
+		/* Clear console */
+		Con_Clear();
+
+		/* Selected device */
+		ndev = &ndevList[selected];
+
+		printf("\t>> Select NAND emulator device: < %s >\n\n", ndev->name);
+
+		printf("\t   Press LEFT/RIGHT to change the selected device.\n\n");
+
+		printf("\t   Press A button to continue.\n");
+		printf("\t   Press HOME button to restart.\n\n");
+
+		u32 buttons = Wpad_WaitButtons();
+
+		/* LEFT/RIGHT buttons */
+		if (buttons & WPAD_BUTTON_LEFT) {
+			if ((--selected) <= -1)
+				selected = (NB_NAND_DEVICES - 1);
+		}
+		if (buttons & WPAD_BUTTON_RIGHT) {
+			if ((++selected) >= NB_NAND_DEVICES)
+				selected = 0;
+		}
+
+		/* HOME button */
+		if (buttons & WPAD_BUTTON_HOME)
+			Restart();
+
+		/* A button */
+		if (buttons & WPAD_BUTTON_A)
+			break;
+	}
+
+	/* No NAND device */
+	if (!ndev->mode)
+		return;
+
+	printf("[+] Enabling NAND emulator...");
+	fflush(stdout);
+
+	/* Mount NAND device */
+	ret = Nand_Mount(ndev);
+	if (ret < 0) {
+		printf(" ERROR! (ret = %d)\n", ret);
+		goto err;
+	}
+
+	/* Enable NAND emulator */
+	ret = Nand_Enable(ndev);
+	if (ret < 0) {
+		printf(" ERROR! (ret = %d)\n", ret);
+		goto err;
+	} else
+		printf(" OK!\n");
+
+	return;
+
+err:
+	printf("\n");
+	printf("    Press any button to continue...\n");
+
+	Wpad_WaitButtons();
+
+	/* Prompt menu again */
+	Menu_NandDevice();
 }
 
 void Menu_WadManage(fatFile *file)
 {
-	fatDevice *dev = &deviceList[device];
-	FILE      *fp  = NULL;
+	FILE *fp  = NULL;
 
 	char filepath[128];
 	f32  filesize;
@@ -289,7 +376,7 @@ void Menu_WadManage(fatFile *file)
 		printf("    WAD Filesize : %.2f MB\n\n\n", filesize);
 
 
-		printf("[+] Select action: < %s WAD >\n\n",  (!mode) ? "Install" : "Uninstall");
+		printf("[+] Select action: < %s WAD >\n\n", (!mode) ? "Install" : "Uninstall");
 
 		printf("    Press LEFT/RIGHT to change selected action.\n\n");
 
@@ -318,7 +405,7 @@ void Menu_WadManage(fatFile *file)
 	fflush(stdout);
 
 	/* Generate filepath */
-	sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", dev->mount, file->filename);
+	sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", fdev->mount, file->filename);
 
 	/* Open WAD */
 	fp = fopen(filepath, "rb");
@@ -397,7 +484,7 @@ void Menu_WadList(void)
 		printf("\n");
 
 		printf("[+] Press A button to (un)install a WAD file.\n");
-		printf("    Press B button to select a storage device.\n");
+		printf("    Press B button to select the storage device.\n");
 
 		/** Controls **/
 		u32 buttons = Wpad_WaitButtons();
@@ -449,12 +536,21 @@ err:
 
 void Menu_Loop(void)
 {
+	u8 iosVersion;
+
 	/* Select IOS menu */
 	Menu_SelectIOS();
 
+	/* Retrieve IOS version */
+	iosVersion = IOS_GetVersion();
+
+	/* NAND device menu */
+	if (iosVersion == CIOS_VERSION)
+		Menu_NandDevice();
+
 	for (;;) {
-		/* Device menu */
-		Menu_Device();
+		/* FAT device menu */
+		Menu_FatDevice();
 
 		/* WAD list menu */
 		Menu_WadList();

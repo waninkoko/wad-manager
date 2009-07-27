@@ -1,5 +1,5 @@
 +----------------------------+
-|   WAD Manager v1.4         |
+|   WAD Manager v1.5         |
 |   developed by Waninkoko   |
 +----------------------------+
 |    www.teknoconsolas.es    |
@@ -33,6 +33,12 @@
 1. Crea un directorio llamado "wad" en la raiz del dispositivo de almacenamiento.
 2. Copia todos los paquetes WAD en el directorio creado en el paso 1.
 3. Ejecuta la aplicacion con cualquier metodo para cargar homebrew.
+
+
+[ NOTAS ]:
+
+- Para poder utilizar la emulacion NAND es necesario tener una copia COMPLETA
+  del sistema de ficheros de la NAND en la raiz del dispositivo FAT.
 
 
 [ KUDOS ]:
