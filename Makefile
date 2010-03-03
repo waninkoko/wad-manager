@@ -28,10 +28,10 @@ INCLUDES	:=
 # options for code generation
 #---------------------------------------------------------------------------------
 
-CFLAGS	= -Os -Wall $(MACHDEP) $(INCLUDE)
+CFLAGS		=	-Os -Wall $(MACHDEP) $(INCLUDE)
 CXXFLAGS	=	$(CFLAGS)
 
-LDFLAGS	=	$(MACHDEP) -Wl,-Map,$(notdir $@).map
+LDFLAGS		=	$(MACHDEP) -Wl,-Map,$(notdir $@).map
 
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
@@ -136,4 +136,3 @@ $(OUTPUT).elf: $(OFILES)
 #---------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------
-

@@ -1,5 +1,5 @@
 +----------------------------+
-|   WAD Manager v1.5         |
+|   WAD Manager v1.6         |
 |   developed by Waninkoko   |
 +----------------------------+
 |    www.teknoconsolas.es    |

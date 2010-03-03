@@ -43,9 +43,9 @@ distribution.
 #define UMS_HEAPSIZE			0x8000
 
 /* Variables */
-static char fs[] ATTRIBUTE_ALIGN(32) = "/dev/usb/ehc";
- 
-static s32 hid = -1, fd = -1;
+static s32 hid = -1;
+static s32 fd  = -1;
+
 static u32 sector_size;
 
 
@@ -78,7 +78,7 @@ bool USBStorage_Init(void)
 	s32 ret;
 
 	/* Already open */
-	if (fd > 0)
+	if (fd >= 0)
 		return 0;
 
 	/* Create heap */
@@ -88,10 +88,15 @@ bool USBStorage_Init(void)
 			return false; 
 	}
 
-	/* Open USB device */
-	fd = IOS_Open(fs, 0);
-	if (fd < 0)
-		return false;
+	/* Open USB module */
+	fd = IOS_Open("/dev/usb2", 0);
+
+	/* Try old module */
+	if (fd < 0) {
+		fd = IOS_Open("/dev/usb/ehc", 0);
+		if (fd < 0)
+			return false;
+	}
 
 	/* Initialize USB storage */
 	IOS_IoctlvFormat(hid, fd, USB_IOCTL_UMS_INIT, ":");
@@ -116,17 +121,19 @@ err:
 bool USBStorage_Deinit(void)
 {
 	/* Close USB device */
-	if (fd > 0) {
+	if (fd >= 0)
 		IOS_Close(fd);
-		fd = -1;
-	}
+
+	/* Reset descriptor */
+	fd = -1;
 
 	return true;
 }
 
 bool USBStorage_IsInserted(void)
 {
-	return (USBStorage_GetCapacity(NULL)) ? true : false;
+	/* Check if device is inserted */
+	return !!USBStorage_GetCapacity(NULL);
 }
 
 bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
@@ -198,6 +205,7 @@ bool USBStorage_ClearStatus(void)
 }
 
 
+/* Disc interface */
 const DISC_INTERFACE __io_usb2storage = {
 	DEVICE_TYPE_WII_USB,
 	FEATURE_MEDIUM_CANREAD | FEATURE_MEDIUM_CANWRITE | FEATURE_WII_USB,

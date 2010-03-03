@@ -201,6 +201,9 @@ void Menu_SelectIOS(void)
 		/* Shutdown subsystems */
 		Wpad_Disconnect();
 
+		printf("\tLoading IOS%d...\n", version);
+		sleep(1);
+
 		/* Load IOS */
 		ret = IOS_ReloadIOS(version);
 
