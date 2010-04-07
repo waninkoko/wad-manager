@@ -16,6 +16,7 @@ typedef struct {
 	/* WAD type */
 	u16 type;
 
+	/* Padding */
 	u16 padding;
 
 	/* Data length */
@@ -101,6 +102,16 @@ out:
 	return ret;
 }
 
+void __Wad_FixTicket(signed_blob *p_tik)
+{
+	u8 *data = (u8 *)p_tik;
+	u8 *ckey = data + 0x1F1;
+
+	/* Check common key */
+	if (*ckey > 1)
+		*ckey = 0;
+}
+
 
 s32 Wad_Install(FILE *fp)
 {
@@ -117,42 +128,45 @@ s32 Wad_Install(FILE *fp)
 
 	/* WAD header */
 	ret = __Wad_ReadAlloc(fp, (void *)&header, offset, sizeof(wadHeader));
-	if (ret < 0)
-		goto err;
-	else
+	if (ret >= 0)
 		offset += round_up(header->header_len, 64);
+	else
+		goto err;
 
 	/* WAD certificates */
 	ret = __Wad_ReadAlloc(fp, (void *)&p_certs, offset, header->certs_len);
-	if (ret < 0)
-		goto err;
-	else
+	if (ret >= 0)
 		offset += round_up(header->certs_len, 64);
+	else
+		goto err;
 
 	/* WAD crl */
 	if (header->crl_len) {
 		ret = __Wad_ReadAlloc(fp, (void *)&p_crl, offset, header->crl_len);
-		if (ret < 0)
-			goto err;
-		else
+		if (ret >= 0)
 			offset += round_up(header->crl_len, 64);
+		else
+			goto err;
 	}
 
 	/* WAD ticket */
 	ret = __Wad_ReadAlloc(fp, (void *)&p_tik, offset, header->tik_len);
-	if (ret < 0)
-		goto err;
-	else
+	if (ret >= 0)
 		offset += round_up(header->tik_len, 64);
+	else
+		goto err;
 
 	/* WAD TMD */
 	ret = __Wad_ReadAlloc(fp, (void *)&p_tmd, offset, header->tmd_len);
-	if (ret < 0)
-		goto err;
-	else
+	if (ret >= 0)
 		offset += round_up(header->tmd_len, 64);
+	else
+		goto err;
 
 	Con_ClearLine();
+
+	/* Fix ticket */
+	__Wad_FixTicket(p_tik);
 
 	printf("\t\t>> Installing ticket...");
 	fflush(stdout);

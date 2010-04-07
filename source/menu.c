@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
+#include <unistd.h>
 #include <ogcsys.h>
 
 #include "fat.h"
