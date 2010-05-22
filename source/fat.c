@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <ogcsys.h>
 
 #include "fat.h"
@@ -7,7 +8,8 @@
 
 s32 Fat_Mount(fatDevice *dev)
 {
-	s32 ret;
+	char dirpath[256];
+	s32  ret;
 
 	/* Initialize interface */
 	ret = dev->interface->startup();
@@ -17,7 +19,11 @@ s32 Fat_Mount(fatDevice *dev)
 	/* Mount device */
 	ret = fatMountSimple(dev->mount, dev->interface);
 	if (!ret)
-		return -1;
+		return -2;
+
+	/* Set root directory */
+	sprintf(dirpath, "%s:/", dev->mount);
+	chdir(dirpath);
 
 	return 0;
 }
@@ -54,4 +60,10 @@ char *Fat_ToFilename(const char *filename)
 	}
 
 	return buffer;
+}
+
+void Fat_ChangeDir(const char *dirname)
+{
+	/* Change directory */
+	chdir(dirname);
 }

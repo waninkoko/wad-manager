@@ -1,5 +1,5 @@
 +----------------------------+
-|   WAD Manager v1.6         |
+|   WAD Manager v1.7         |
 |   developed by Waninkoko   |
 +----------------------------+
 |    www.teknoconsolas.es    |
@@ -15,24 +15,29 @@
 
 [ DESCRIPCION ]:
 
-- WAD Manager es una aplicacion que te permite (des)instalar paquetes WAD.
+- WAD Manager es una aplicacion que permite la (des)instalacion de paquetes
+  en formato WAD (paquetes caseros y oficiales).
 
-  La aplicacion muestra todos los paquetes WAD disponibles en un
-  dispositivo de almacenamiento para poder elegir cual (des)instalar.
+  La aplicacion permite navegar al usuario por los contenidos de un dispositivo
+  de almacenamiento para poder trabajar con los paquetes WAD disponibles.
 
 
 [ DISPOSITIVOS SOPORTADOS ]:
 
 - SDGecko.
 - Puerto SD interno (con soporte SDHC).
-- Dispositivo USB (1.1 y 2.0).
+- Dispositivo de almacenamiento USB (1.1 y 2.0).
 
 
 [ COMO USARLO ]:
 
-1. Crea un directorio llamado "wad" en la raiz del dispositivo de almacenamiento.
-2. Copia todos los paquetes WAD en el directorio creado en el paso 1.
-3. Ejecuta la aplicacion con cualquier metodo para cargar homebrew.
+1. Copia los paquetes WAD en el dispositivo de almacenamiento.
+2. Inserta el dispositivo de almacenamiento en la Wii.
+3. Ejecuta la aplicacion utilizando cualquier metodo para cargar homebrew.
+4. Selecciona la version de IOS a utilizar. IOS249 recomendado (si esta disponible).
+5. Selecciona el dispositivo de almacenamiento a utilizar.
+6. Navega por los contenidos del dispositivo de almacenamiento y selecciona
+   el paquete WAD a (des)instalar.
 
 
 [ NOTAS ]:

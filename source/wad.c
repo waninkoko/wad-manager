@@ -107,9 +107,13 @@ void __Wad_FixTicket(signed_blob *p_tik)
 	u8 *data = (u8 *)p_tik;
 	u8 *ckey = data + 0x1F1;
 
-	/* Check common key */
-	if (*ckey > 1)
+	if (*ckey > 1) {
+		/* Set common key */
 		*ckey = 0;
+		
+		/* Fakesign ticket */
+		Title_FakesignTik(p_tik);
+	}
 }
 
 

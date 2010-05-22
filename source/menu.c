@@ -42,9 +42,7 @@ static nandDevice *ndev = NULL;
 
 /* Constants */
 #define CIOS_VERSION		249
-#define ENTRIES_PER_PAGE	8
-
-#define WAD_DIRECTORY		"/wad"
+#define ENTRIES_PER_PAGE	10
 
 
 s32 __Menu_IsGreater(const void *p1, const void *p2)
@@ -64,7 +62,14 @@ s32 __Menu_EntryCmp(const void *p1, const void *p2)
 	fatFile *f1 = (fatFile *)p1;
 	fatFile *f2 = (fatFile *)p2;
 
-	/* Compare entries */
+	s32 ret;
+
+	/* Compare attributes */
+	ret = (f1->filestat.st_mode - f2->filestat.st_mode);
+	if (ret)
+		return ret;
+
+	/* Compare names */
 	return strcmp(f1->filename, f2->filename);
 }
 
@@ -75,22 +80,16 @@ s32 __Menu_RetrieveList(fatFile **outbuf, u32 *outlen)
 
 	struct stat filestat;
 
-	char dirpath[256], filename[768];
+	char filename[768];
 	u32  cnt;
 
-	/* Generate dirpath */
-	sprintf(dirpath, "%s:" WAD_DIRECTORY, fdev->mount);
-
 	/* Open directory */
-	dir = diropen(dirpath);
+	dir = diropen(".");
 	if (!dir)
 		return -1;
 
 	/* Count entries */
-	for (cnt = 0; !dirnext(dir, filename, &filestat);) {
-		if (!(filestat.st_mode & S_IFDIR))
-			cnt++;
-	}
+	for(cnt = 0; !dirnext(dir, filename, &filestat); cnt++);
 
 	if (cnt > 0) {
 		/* Allocate memory */
@@ -105,15 +104,13 @@ s32 __Menu_RetrieveList(fatFile **outbuf, u32 *outlen)
 
 		/* Get entries */
 		for (cnt = 0; !dirnext(dir, filename, &filestat);) {
-			if (!(filestat.st_mode & S_IFDIR)) {
-				fatFile *file = &buffer[cnt++];
+			fatFile *file = &buffer[cnt++];
 
-				/* File name */
-				strcpy(file->filename, filename);
+			/* File name */
+			strcpy(file->filename, filename);
 
-				/* File stats */
-				file->filestat = filestat;
-			}
+			/* File stats */
+			file->filestat = filestat;
 		}
 
 		/* Sort list */
@@ -128,6 +125,19 @@ s32 __Menu_RetrieveList(fatFile **outbuf, u32 *outlen)
 	*outlen = cnt;
 
 	return 0;
+}
+
+s32 __Menu_ChangeDir(fatFile *file, fatFile **outbuf, u32 *outlen)
+{
+	/* Change directory */
+	Fat_ChangeDir(file->filename);
+
+	/* Free memory */
+	if (*outbuf)
+		free(*outbuf);
+
+	/* Retrieve list */
+	return __Menu_RetrieveList(outbuf, outlen);
 }
 
 
@@ -215,7 +225,8 @@ void Menu_SelectIOS(void)
 
 void Menu_FatDevice(void)
 {
-	s32 ret, selected = 0;
+	s32 selected = 0;
+	s32 ret;
 
 	/* Unmount FAT device */
 	if (fdev)
@@ -282,7 +293,8 @@ err:
 
 void Menu_NandDevice(void)
 {
-	s32 ret, selected = 0;
+	s32 selected = 0;
+	s32 ret;
 
 	/* Disable NAND emulator */
 	if (ndev) {
@@ -364,10 +376,8 @@ void Menu_WadManage(fatFile *file)
 {
 	FILE *fp  = NULL;
 
-	char filepath[128];
-	f32  filesize;
-
-	u32  mode = 0;
+	f32 filesize;
+	u32 mode = 0;
 
 	/* File size in megabytes */
 	filesize = (file->filestat.st_size / MB_SIZE);
@@ -408,11 +418,8 @@ void Menu_WadManage(fatFile *file)
 	printf("[+] Opening \"%s\", please wait...", file->filename);
 	fflush(stdout);
 
-	/* Generate filepath */
-	sprintf(filepath, "%s:" WAD_DIRECTORY "/%s", fdev->mount, file->filename);
-
 	/* Open WAD */
-	fp = fopen(filepath, "rb");
+	fp = fopen(file->filename, "rb");
 	if (!fp) {
 		printf(" ERROR!\n");
 		goto out;
@@ -444,7 +451,8 @@ void Menu_WadList(void)
 	fatFile *fileList = NULL;
 	u32      fileCnt;
 
-	s32 ret, selected = 0, start = 0;
+	s32 selected = 0, start = 0;
+	s32 ret;
 
 	printf("[+] Retrieving file list...");
 	fflush(stdout);
@@ -458,7 +466,7 @@ void Menu_WadList(void)
 
 	/* No files */
 	if (!fileCnt) {
-		printf(" No files found!\n");
+		printf(" No files/directories found!\n");
 		goto err;
 	}
 
@@ -470,30 +478,36 @@ void Menu_WadList(void)
 		Con_Clear();
 
 		/** Print entries **/
-		printf("[+] Available WAD files on the device:\n\n");
+		printf("[++] Filebrowser:\n\n");
 
 		/* Print entries */
 		for (cnt = start; cnt < fileCnt; cnt++) {
-			fatFile *file     = &fileList[cnt];
-			f32      filesize = file->filestat.st_size / MB_SIZE;
+			fatFile *file  = &fileList[cnt];
+			f32      fsize = (file->filestat.st_size / MB_SIZE);
 
 			/* Entries per page limit */
 			if ((cnt - start) >= ENTRIES_PER_PAGE)
 				break;
 
 			/* Print filename */
-			printf("\t%2s %s (%.2f MB)\n", (cnt == selected) ? ">>" : "  ", file->filename, filesize);
+			printf("\t%2s %-42s", (cnt == selected) ? ">>" : "  ", file->filename);
+
+			/* Print stats */
+			if (file->filestat.st_mode & S_IFDIR)
+				printf(" (DIR)\n");
+			else
+				printf(" (%.2f MB)\n", fsize);
 		}
 
 		printf("\n");
 
-		printf("[+] Press A button to (un)install a WAD file.\n");
+		printf("    Press A button to open a directory or a WAD file.\n");
 		printf("    Press B button to select the storage device.\n");
 
 		/** Controls **/
 		u32 buttons = Wpad_WaitButtons();
 
-		/* DPAD buttons */
+		/* D-PAD buttons */
 		if (buttons & (WPAD_BUTTON_UP | WPAD_BUTTON_LEFT)) {
 			selected -= (buttons & WPAD_BUTTON_LEFT) ? ENTRIES_PER_PAGE : 1;
 
@@ -512,8 +526,25 @@ void Menu_WadList(void)
 			Restart();
 
 		/* A button */
-		if (buttons & WPAD_BUTTON_A)
-			Menu_WadManage(&fileList[selected]);
+		if (buttons & WPAD_BUTTON_A) {
+			fatFile *file = &fileList[selected];
+
+			/* Manage entry */
+			if (file->filestat.st_mode & S_IFDIR) {
+				/* Change directory */
+				ret = __Menu_ChangeDir(file, &fileList, &fileCnt);
+				if (ret < 0) {
+					printf("\n");
+					printf("[+] ERROR: Could not change the directory! (ret = %d)\n", ret);
+
+					break;
+				}
+
+				/* Reset cursor */
+				selected = 0;
+			} else
+				Menu_WadManage(file);
+		}
 
 		/* B button */
 		if (buttons & WPAD_BUTTON_B)

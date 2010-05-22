@@ -1,5 +1,5 @@
 +----------------------------+
-|   WAD Manager v1.6         |
+|   WAD Manager v1.7         |
 |   developed by Waninkoko   |
 +----------------------------+
 |    www.teknoconsolas.es    |
@@ -15,11 +15,11 @@
 
 [ DESCRIPTION ]:
 
-- WAD Manager is an application that allows you to (un)install
-  WAD packages.
+- WAD Manager is an application that allows the (un)installation of
+  packages in WAD format (homebrew and official packages).
 
-  It lists all the available WAD packages in a storage device
-  so you can select which one to (un)install.
+  It allows the browsing of a storage device to work with the
+  available WAD files in it.
 
 
 [ SUPPORTED DEVICES ]:
@@ -31,9 +31,13 @@
 
 [ HOW TO USE ]:
 
-1. Create a folder called "wad" in the root of the storage device.
-2. Copy all the WAD packages in the folder created in the step 1.
-3. Run the application with any method to load homebrew.
+1. Copy all the WAD packages in the storage device.
+2. Insert the storage device in the Wii.
+3. Run the application using any method to load homebrew.
+4. Select the IOS version to use. IOS249 recommended (if available).
+5. Select the storage device to use.
+6. Browse the storage device contents and select the WAD package
+   to (un)install.
 
 
 [ NOTES ]:

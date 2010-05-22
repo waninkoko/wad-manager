@@ -40,8 +40,6 @@ distribution.
 #define USB_IOCTL_UMS_READ_STRESS	(UMS_BASE+0x5)
 #define USB_IOCTL_UMS_SET_VERBOSE	(UMS_BASE+0x6)
 
-#define UMS_HEAPSIZE			0x8000
-
 /* Variables */
 static s32 hid = -1;
 static s32 fd  = -1;
@@ -77,16 +75,9 @@ bool USBStorage_Init(void)
 {
 	s32 ret;
 
-	/* Already open */
+	/* Already inited */
 	if (fd >= 0)
-		return 0;
-
-	/* Create heap */
-	if (hid < 0) {
-		hid = iosCreateHeap(UMS_HEAPSIZE);
-		if (hid < 0)
-			return false; 
-	}
+		return true;
 
 	/* Open USB module */
 	fd = IOS_Open("/dev/usb2", 0);
@@ -133,70 +124,31 @@ bool USBStorage_Deinit(void)
 bool USBStorage_IsInserted(void)
 {
 	/* Check if device is inserted */
-	return !!USBStorage_GetCapacity(NULL);
+	return (USBStorage_GetCapacity(NULL) > 0);
 }
 
 bool USBStorage_ReadSectors(u32 sector, u32 numSectors, void *buffer)
 {
-	void *buf = (void *)buffer;
-	u32   len = (sector_size * numSectors);
-
-	s32 ret;
+	u32 len = (sector_size * numSectors);
 
 	/* Device not opened */
 	if (fd < 0)
 		return false;
 
-	/* MEM1 buffer */
-	if (!__USBStorage_isMEM2Buffer(buffer)) {
-		/* Allocate memory */
-		buf = iosAlloc(hid, len);
-		if (!buf)
-			return false;
-	}
-
 	/* Read data */
-	ret = IOS_IoctlvFormat(hid, fd, USB_IOCTL_UMS_READ_SECTORS, "ii:d", sector, numSectors, buf, len);
-
-	/* Copy data */
-	if (buf != buffer) {
-		memcpy(buffer, buf, len);
-		iosFree(hid, buf);
-	}
-
-	return true;
+	return IOS_IoctlvFormat(hid, fd, USB_IOCTL_UMS_READ_SECTORS, "ii:d", sector, numSectors, buffer, len);
 }
 
 bool USBStorage_WriteSectors(u32 sector, u32 numSectors, const void *buffer)
 {
-	void *buf = (void *)buffer;
-	u32   len = (sector_size * numSectors);
-
-	s32 ret;
+	u32 len = (sector_size * numSectors);
 
 	/* Device not opened */
 	if (fd < 0)
 		return false;
 
-	/* MEM1 buffer */
-	if (!__USBStorage_isMEM2Buffer(buffer)) {
-		/* Allocate memory */
-		buf = iosAlloc(hid, len);
-		if (!buf)
-			return false;
-
-		/* Copy data */
-		memcpy(buf, buffer, len);
-	}
-
 	/* Write data */
-	ret = IOS_IoctlvFormat(hid, fd, USB_IOCTL_UMS_WRITE_SECTORS, "ii:d", sector, numSectors, buf, len);
-
-	/* Free memory */
-	if (buf != buffer)
-		iosFree(hid, buf);
-
-	return true;
+	return IOS_IoctlvFormat(hid, fd, USB_IOCTL_UMS_WRITE_SECTORS, "ii:d", sector, numSectors, buffer, len);
 }
 
 bool USBStorage_ClearStatus(void)

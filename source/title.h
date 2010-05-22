@@ -5,6 +5,9 @@
 #define BLOCK_SIZE	1024
 
 /* Prototypes */
+s32 Title_ZeroSignature(signed_blob *);
+s32 Title_FakesignTik(signed_blob *);
+s32 Title_FakesignTMD(signed_blob *);
 s32 Title_GetList(u64 **, u32 *);
 s32 Title_GetTicketViews(u64, tikview **, u32 *);
 s32 Title_GetTMD(u64, signed_blob **, u32 *);

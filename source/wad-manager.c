@@ -6,6 +6,7 @@
 #include "gui.h"
 #include "menu.h"
 #include "restart.h"
+#include "sound.h"
 #include "sys.h"
 #include "video.h"
 #include "wpad.h"
@@ -51,6 +52,12 @@ int main(int argc, char **argv)
 
 	/* Draw background */
 	Gui_DrawBackground();
+
+	/* Initialize sound */
+	Sound_Init();
+
+	/* Play sound */
+	Sound_Play();
 
 	/* Initialize Wiimote */
 	Wpad_Init();

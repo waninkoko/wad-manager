@@ -36,6 +36,7 @@ typedef struct {
 s32   Fat_Mount(fatDevice *);
 void  Fat_Unmount(fatDevice *);
 char *Fat_ToFilename(const char *);
+void  Fat_ChangeDir(const char *);
 
 #endif
  
